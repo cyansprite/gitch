@@ -56,7 +56,7 @@ function! s:gitch.Action(action)
 endfunction
 
 function! s:gitch.ActionHelp()
-    set modifiable
+    setlocal modifiable
     let self.showHelp = !self.showHelp
     if self.showHelp
         " delete the help line + 1 for space
@@ -73,7 +73,7 @@ function! s:gitch.ActionHelp()
         call append(0,'" Press ? for help.')
         let s:index = s:index - len(s:keymap) + 1
     endif
-    set nomodifiable
+    setlocal nomodifiable
 endfunction
 
 function! s:gitch.ActionEnter()
@@ -122,8 +122,8 @@ function! gitch#gitList(list)
         return
     endif
 
-    set modifiable
+    setlocal modifiable
     silent exec s:index.',$ d _'
     call append(s:index - 1, s:gitchList)
-    set nomodifiable
+    setlocal nomodifiable
 endfunc
