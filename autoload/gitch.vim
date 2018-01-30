@@ -8,6 +8,7 @@ let s:keymap += [['Status','s','Status']]
 let s:gitch = {}
 let s:index = 1
 let s:gitchList = []
+let s:opened = {}
 
 function! s:gitch.BindKey()
     let map_options =' <nowait> <silent> <buffer> '
@@ -81,11 +82,29 @@ function! s:gitch.ActionEnter()
         return
     endif
 
-    if getline('.') == s:gitchList[line('.') - s:index]
-        exec 'cd '. s:gitchList[line('.') - s:index]
-        exec 'e .'
+    " TODO reopen or pop out the s:opened keys on close/open
+    let ind = search('^\w', 'bn')
+    let curs = getline(ind)
+    let item = s:gitchList[curs][line('.') - ind - 1]
+    if !has_key(s:opened, item)
+        let s:opened[item] = getline(line('.') - ind + s:index)
+        exec 'let s:x = (GetSub("'. l:item .'"))'
+        if s:x != []
+            setlocal modifiable
+            let i = -1
+            for x in s:x
+                call append(line('.'), repeat(' ',indent('.') + &tabstop) . x)
+                call insert(s:gitchList[curs], l:item . '\\' . x, line('.') - s:index + 1)
+                let i = i + 1
+            endfor
+            setlocal nomodifiable
+        endif
     else
-        throw 'You fucked up somehow'
+        setlocal modifiable
+        silent exec (line('.') + 1).','.(search(s:opened[item]) - 1).' d _'
+        silent normal! k
+        setlocal nomodifiable
+        silent call remove(s:opened, item)
     endif
 endfunction
 
@@ -110,9 +129,11 @@ function! s:gitchAction(action)
 endfunction
 
 function! gitch#gitchShow()
-    call s:gitch.Init()
-    call s:gitch.Show()
-    call gitch#gitList(s:gitchList)
+    if g:gitchReady
+        call s:gitch.Init()
+        call s:gitch.Show()
+        call gitch#gitList(s:gitchList)
+    endif
 endfunction
 
 function! gitch#gitList(list)
@@ -124,6 +145,16 @@ function! gitch#gitList(list)
 
     setlocal modifiable
     silent exec s:index.',$ d _'
-    call append(s:index - 1, s:gitchList)
+    for key in keys(s:gitchList)
+        call append(s:index - 1, key)
+        let s:index = s:index + 1
+        let i = 0
+        for s in s:gitchList[key]
+            call append(s:index - 1 + i, repeat(' ', &tabstop) . s)
+            let s:gitchList[key][i] = key . '\\' . s:gitchList[key][i]
+            " echom s:gitchList[key][i]
+            let i = i + 1
+        endfor
+    endfor
     setlocal nomodifiable
 endfunc

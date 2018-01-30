@@ -17,12 +17,13 @@ class Gitch(object):
     def __init__(self, nvim):
         self.nvim = nvim;
         self.init = False;
+        self.filetype = ''
 
-    @neovim.autocmd('VimEnter', pattern='*', eval='&filetype', sync=True)
-    def on_vim(self, filetype):
-        # self.nvim.command("GitchLoading")
-        # self.nvim.async_call(lambda:[self.entrance(filetype)]);
-        self.entrance(filetype)
+    @neovim.autocmd('CursorHold', pattern='*', sync=False)
+    def on_vim(self):
+        self.nvim.command("set updatetime=1")
+        self.entrance()
+        self.nvim.command("set updatetime=1000")
 
     @neovim.autocmd('VimLeave', pattern='*', sync=True)
     def on_vim_l(self):
@@ -31,11 +32,16 @@ class Gitch(object):
 
     @neovim.autocmd('CursorMoved', pattern='*', eval="getline('.')", sync=True)
     def on_move(self, arg):
-        x = self.git.branch(arg)
-        if x != "":
-            self.nvim.command("echohl diffAdded")
-            self.nvim.command("echom '{}'".format(x))
-            self.nvim.command("echohl NONE")
+        if self.filetype == 'gitch':
+            x = self.git.branch(arg)
+            if x != "":
+                self.nvim.command("echohl diffAdded")
+                self.nvim.command("echom '{}'".format(x))
+                self.nvim.command("echohl NONE")
+
+    @neovim.autocmd('FileType', pattern='*', eval="&filetype", sync=True)
+    def on_type(self, arg):
+        self.filetype = arg[0];
 
     @neovim.function("GitStatus", sync=True)
     def gitstatus(self, args):
@@ -52,19 +58,26 @@ class Gitch(object):
         else:
             return '';
 
-    def entrance(self, filetype):
-        self.git = git();
-        self.init = True;
+    def entrance(self):
+        if not self.init:
+            self.git = git();
+            self.init = True;
+            self.nvim.out_write("Bitch\n")
+            self.nvim.command("call gitch#gitList({})".format(self.git.project_list()));
+            self.nvim.command("let g:gitchReady = 1")
 
-        for x in self.git.project_list():
-            self.nvim.out_write("{}\n".format(x));
+    @neovim.command("TestCommand", range='', nargs='*')
+    def testcommand(self, args, range):
+        self.nvim.out_write("{}\n".format(self.git.roots))
 
-        self.nvim.command("call gitch#gitList({})".format(self.git.project_list()));
-        self.nvim.command("Gitch")
-
-    # @neovim.autocmd('BufEnter', pattern='*.py', eval='expand("<afile>")', sync=True)
-    # def on_bufenter(self, filename):
-    #     self.nvim.out_write("testplugin is in " + filename + "\n")
+    @neovim.function("GetSub", sync=True)
+    def gitstatus(self, args):
+        if len(args) == 1:
+            if args[0] in self.git.roots:
+                return self.git.roots[args[0]];
+            return [];
+        else:
+            return [];
 
 class git():
     def die(self):
@@ -74,28 +87,43 @@ class git():
     def __init__(self):
         # TODO setup user vars
         self.bases = ['C:\\Users\\bcoffman'];
+        # self.bases.append('C:\\Users\\bcoffman\\.local\\share\\nvim\\plugged');
 
         # TODO dont look inside of .git folders...
         self.excludes = ['AppData', '.local', '.fzf', '.cargo', '.nuget', 'node_modules', 'bin', '.hyper_plugins', '.multirust', '.rustup', '.vscode']
 
-        self.gitRepos = [];
-        self.get_repos();
+        self.gitRepos = []
+        self.others = {}
+        self.roots = {}
         self.dirs = []
         self.temps = []
+
+        self.get_repos();
 
     def get_repos(self):
         for b in self.bases:
             for root, dirs, files in os.walk(b):
                 dirs[:] = [d for d in dirs if not d in self.excludes];
+                dirs[:] = [d for d in dirs if not d.startswith('.')];
                 for d in dirs:
                     if d == ".git":
                         self.gitRepos.append(Repo(root));
+                    elif root == b:
+                        if b in self.others:
+                            self.others[b].append(d)
+                        else:
+                            self.others[b] = [d]
+                    else:
+                        if root in self.roots:
+                            self.roots[root].append(d)
+                        else:
+                            self.roots[root] = [d]
 
     def project_list(self):
         out = [];
         for r in self.gitRepos:
             out.append(r.root)
-        return out;
+        return self.others;
 
     def _get_rep(self,rep):
         rep = codecs.decode(rep, 'unicode_escape')
