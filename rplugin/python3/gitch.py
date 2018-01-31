@@ -11,7 +11,6 @@ from subprocess import Popen, PIPE
 
 import neovim
 
-@neovim.plugin
 class Gitch(object):
 
     def __init__(self, nvim):
@@ -19,11 +18,9 @@ class Gitch(object):
         self.init = False;
         self.filetype = ''
 
-    @neovim.autocmd('CursorHold', pattern='*', sync=False)
+    @neovim.autocmd('BufEnter', pattern='*', sync=False)
     def on_vim(self):
-        self.nvim.command("set updatetime=1")
         self.entrance()
-        self.nvim.command("set updatetime=1000")
 
     @neovim.autocmd('VimLeave', pattern='*', sync=True)
     def on_vim_l(self):
@@ -41,7 +38,11 @@ class Gitch(object):
 
     @neovim.autocmd('FileType', pattern='*', eval="&filetype", sync=True)
     def on_type(self, arg):
-        self.filetype = arg[0];
+        self.filetype = arg;
+
+    @neovim.autocmd('Syntax', pattern='*', eval="&syntax", sync=True)
+    def on_syn(self, typ):
+        self.syntax = typ;
 
     @neovim.function("GitStatus", sync=True)
     def gitstatus(self, args):
@@ -94,6 +95,7 @@ class git():
 
         self.gitRepos = []
         self.others = {}
+        self.files = {}
         self.roots = {}
         self.dirs = []
         self.temps = []
@@ -105,6 +107,7 @@ class git():
             for root, dirs, files in os.walk(b):
                 dirs[:] = [d for d in dirs if not d in self.excludes];
                 dirs[:] = [d for d in dirs if not d.startswith('.')];
+
                 for d in dirs:
                     if d == ".git":
                         self.gitRepos.append(Repo(root));
@@ -119,11 +122,19 @@ class git():
                         else:
                             self.roots[root] = [d]
 
+                for f in files:
+                    if root == b:
+                        if b in self.files:
+                            self.files[b].append(f)
+                        else:
+                            self.files[b] = [f]
+
+
     def project_list(self):
         out = [];
         for r in self.gitRepos:
             out.append(r.root)
-        return self.others;
+        return self.files;
 
     def _get_rep(self,rep):
         rep = codecs.decode(rep, 'unicode_escape')
